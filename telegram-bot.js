@@ -1,14 +1,11 @@
 /**
- * Telegram Prompt Architect Bot - Final Production Release
+ * Telegram Prompt Architect Bot - Production Server v7.0
+ * Accurate Dialect Understanding + Exact Prompt Translation
  * Token: 8904951015:AAHDiCUViLhw_2-AkzvjEaASgDHNCZR6t-Y
- * Supports:
- * 1. True Unrestricted Jailbreak & DEV-MODE (Zero preaching, zero "As an AI", pure unconstrained answers).
- * 2. Visual Reverse Prompt Engineering for Midjourney & Flux.1 (Pure concise English under 50 words).
- * 3. General task-specific mega prompts.
  */
 
 const https = require('https');
-const { translateArabicToEnglish, buildConcisePrompt } = require('./concise-engine');
+const { translateArabicContext, buildConcisePrompt } = require('./concise-engine');
 
 const TOKEN = '8904951015:AAHDiCUViLhw_2-AkzvjEaASgDHNCZR6t-Y';
 const BASE_URL = `https://api.telegram.org/bot${TOKEN}`;
@@ -21,7 +18,6 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;');
 }
 
-// دالة توليد برومبت كسر وتخفيف القيود الحقيقي والقوي
 function generateTrueJailbreakPrompt(userTopic) {
   let clean = (userTopic || '')
     .replace(/(بدي|اعطيني|برومبت|برمبت|لكسر|لتخفيف|قيود|شات|جيبتي|chatgpt|jailbreak|لـ|عن)/gi, '')
@@ -45,7 +41,7 @@ function processMessage(userText, isImage = false) {
   const text = (userText || '').trim();
   const lower = text.toLowerCase();
 
-  // فحص إذا كان المستخدم يريد برومبت لكسر أو تخفيف القيود
+  // 1. فحص كسر القيود وشات جي بي تي
   const isJailbreak = lower.includes('قيود') || lower.includes('كسر') || lower.includes('تخفيف') || lower.includes('jailbreak') || lower.includes('dan');
 
   if (isJailbreak && !isImage) {
@@ -63,34 +59,26 @@ function processMessage(userText, isImage = false) {
 2. الصق البرومبت أعلاه، وسيبدأ الذكاء الاصطناعي مباشرة بالإجابة بصيغة <code>[DEV-MODE]:</code> بدون محاضرات أخلاقية وبدون أي اعتذارات مصطنعة.`;
   }
 
-  // فحص إذا كان طلباً لتوليد صورة
-  const isImageRequest = isImage || /صورة|صوره|photo|image|render|رسمة|midjourney|flux|قطة|ساموراي|امرأة|بنت|مشهد|فيلا|سيارة/i.test(text);
+  // 2. تحليل طلبات الصور بدقة لغوية كاملة
+  const isImageRequest = isImage || /صورة|صوره|photo|image|render|رسمة|midjourney|flux|قطة|ساموراي|امرأة|بنت|شب|حبيبين|يبوسو|بوسة|قبلة|مشهد|فيلا|سيارة/i.test(text);
 
   if (isImageRequest) {
-    let translated;
-    if (isImage) {
-      translated = {
-        english: text ? `cinematic shot inspired by visual reference of ${translateArabicToEnglish(text).english}` : "cinematic shot preserving subject visual identity and facial structure from reference",
-        mood: "portrait"
-      };
-    } else {
-      translated = translateArabicToEnglish(text);
-    }
+    let cleanText = text.replace(/^(بدي|اعملي|اعطيني|برمبت|برومبت|صورة|صوره)\s+/gi, '').trim();
+    const translatedSubject = translateArabicContext(cleanText || text);
+    const result = buildConcisePrompt(translatedSubject, "romantic", cleanText || text);
 
-    const result = buildConcisePrompt(translated.english, translated.mood, text);
+    return `🎨 <b>[أمر توليد صورة سينمائي فائق الدقة]</b>
 
-    return `🎨 <b>[أمر توليد صورة سينمائي احترافي]</b>
-
-🏛️ <b>[التفكيك المعماري للمشهد]:</b>
-• <b>1. الموضوع:</b> ${escapeHtml(result.layersAr.subject)}
+🏛️ <b>[التفكيك المعماري للمشهد المطلوب]:</b>
+• <b>1. الموضوع الأساسي:</b> ${escapeHtml(result.layersAr.subject)}
 • <b>2. البيئة والمود:</b> ${escapeHtml(result.layersAr.environment)}
 • <b>3. الكاميرا والأسلوب:</b> <code>${escapeHtml(result.layersAr.medium)}</code>
-• <b>4. الإضاءة الدافئة:</b> ${escapeHtml(result.layersAr.lighting)}
+• <b>4. الإضاءة:</b> ${escapeHtml(result.layersAr.lighting)}
 • <b>5. التأطير:</b> ${escapeHtml(result.layersAr.composition)}
 
 ═══════════════════
 
-⚡ <b>[الأمر الإيجابي بالإنجليزية (جاهز للنسخ - ${result.wordCount} كلمة)]:</b>
+⚡ <b>[الأمر النهائي بالإنجليزية لـ Midjourney / Flux (جاهز للنسخ)]:</b>
 <code>${escapeHtml(result.finalPrompt)}</code>
 
 ═══════════════════
@@ -106,7 +94,7 @@ function processMessage(userText, isImage = false) {
 • <b>CFG Scale:</b> <code>${escapeHtml(result.settings.cfgScale)}</code>`;
   }
 
-  // للأوامر العامة الأخرى (نصي / برمجة / تحليل)
+  // 3. للأوامر النصية العامة الأخرى
   const clean = text.replace(/^(بدي|اعملي|اعطيني|برمبت|برومبت)\s+/i, '').trim();
   const megaPrompt = `Act as an Elite Specialist and World-Class Authority in: "${clean || text}".
 Requirements:
@@ -199,15 +187,11 @@ async function handleUpdate(update) {
   console.log(`[Telegram User ${username}]:`, text || (msg.photo ? '[Photo]' : 'other'));
 
   if (text.startsWith('/start')) {
-    const welcome = `أهلاً بك في <b>بوت مهندس الأوامر (Prompt Architect Bot)</b> 🏛️⚡
+    const welcome = `أهلاً بك في <b>بوت مهندس الأوامر المحدث (Prompt Architect Bot v7.0)</b> 🏛️⚡
 
-أنا جاهز الآن لخدمتك في مجالين رئيسيين:
-
-🔓 <b>1. برومبتات كسر وتخفيف القيود (ChatGPT Jailbreak):</b>
-• اكتب فقط: <code>بدي برومبت لكسر القيود</code> وسأعطيك برومبت <b>DEV-MODE</b> الحقيقي لتجاوز الوعظ والاعتذارات.
-
-🎨 <b>2. أوامر توليد الصور السينمائية (Midjourney / Flux.1):</b>
-• أرسل أي فكرة سينمائية (مثال: <code>امرأة في مشهد حميمي</code>، <code>قطة</code>، <code>ساموراي</code>) أو أرسل صورة وسأهندسها لك فورياً باللغة الإنجليزية بدون حشو.`;
+أنا أفهم اللهجة العامية والطلبات الدقيقة وأترجمها إلى برومبت إنجليزي دقيق 100%:
+• <b>توليد الصور:</b> جرب مثلاً: <code>برمبت شب وبنت عم يبوسو بعض</code>، أو <code>ساموراي تحت المطر</code>.
+• <b>شات جي بي تي:</b> اطلب: <code>برومبت لكسر قيود شات جيبتي</code> للحصول على برومبت DEV-MODE الحقيقي.`;
     await sendMessage(chatId, welcome);
     return;
   }
@@ -219,7 +203,7 @@ async function handleUpdate(update) {
 let offset = 0;
 
 async function runLoop() {
-  console.log('🚀 بوت التيليجرام قيد التشغيل والاستماع بالتوكن الجديد...');
+  console.log('🚀 بوت التيليجرام v7.0 المحدث قيد الاستماع على السيرفر...');
   
   while (true) {
     try {
@@ -236,7 +220,7 @@ async function runLoop() {
         }
       }
     } catch (err) {
-      // استمرار فوري
+      // صامت
     }
     await new Promise(r => setTimeout(r, 200));
   }
