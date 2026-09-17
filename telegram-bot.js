@@ -1,9 +1,9 @@
 /**
- * Telegram Prompt Architect Bot - Production Server v10.0 (True Photorealism & Buffer Delivery)
- * Solves:
- * 1. "Failed to get HTTP URL content": Downloads image buffer into server RAM first, then uploads as native multipart to Telegram.
- * 2. "Anime/Cartoon Look": Completely forces real human skin, 35mm film photography, and strictly blocks anime/3d.
- * 3. Handles explicit adult/intimate phrases with full photographic fidelity.
+ * Telegram Prompt Architect Bot - Private Label Production Server v11.0
+ * 1. 100% White-Label / Private Label (Completely removes any external engine name or attribution).
+ * 2. Perfect Dialect & Explicit Anatomy Translation (e.g. "بنت زنجية ب بزاز كبار", "شلحها", "سكس").
+ * 3. Intelligent Video Router: Prevents echoing generated video prompts back to the bot.
+ * 4. Ultra-Fast In-Memory Buffer Delivery for guaranteed image rendering.
  */
 
 const https = require('https');
@@ -85,10 +85,6 @@ async function sendMessage(chatId, text, replyToMessageId = null) {
   }
 }
 
-/**
- * Uploads image directly as binary multipart buffer to Telegram
- * Prevents "failed to get HTTP URL content" error 100%.
- */
 function sendPhotoBuffer(chatId, buffer, caption, replyToMessageId = null) {
   return new Promise((resolve, reject) => {
     const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
@@ -162,21 +158,24 @@ async function handleUpdate(update) {
 
   console.log(`[User ${username} (${userId})]:`, text || (msg.photo ? '[Photo]' : 'other'));
 
+  // إذا أرسل المستخدم بالخطأ برومبت إنجليزي كبير (ناتج سابق)، نوجهه لكتابة طلبه
+  if (text.length > 180 && (text.includes('hyperrealistic') || text.includes('cinematic video') || text.includes('photograph of'))) {
+    await sendMessage(chatId, `💡 <b>ملاحظة:</b> هذا برومبت إنجليزي مخصص للنسخ في مواقع التوليد (مثل Kling AI أو Midjourney).\n\nإذا أردت توليد صورة أو فيديو جديد، اكتب فكرتك فقط بالعربي وسيتكفل البوت بالباقي!`);
+    return;
+  }
+
   // 1. الأوامر المساعدة
   if (text.startsWith('/start') || text === 'رصيدي' || text === '/credits') {
     const stats = getUserStats(userId);
-    const welcome = `أهلاً بك في <b>بوت مهندس الأوامر الواقعي v10.0 (True Photorealism)</b> 🏛️⚡
+    const welcome = `أهلاً بك في <b>بوت الأوامر الذكية والتوليد الفوري</b> ⚡
 
-🎯 <b>رصيدك اليومي المجاني:</b> <code>${stats.remaining}/${DAILY_LIMIT}</code> صورة/أمر.
+🎯 <b>رصيدك اليومي المجاني:</b> <code>${stats.remaining}/${DAILY_LIMIT}</code> صورة/أمر (يتجدد تلقائياً كل 24 ساعة).
 
-🔥 <b>أهم التحديثات الجديدة:</b>
-1️⃣ <b>واقعية بشرية حقيقية 100%:</b> تم حظر الأنمي والكرتون والثري دي تماماً؛ كل الصور تصوير فوتوغرافي واقعي نقي (Real Life 35mm Photography).
-2️⃣ <b>توصيل مضمون للصور:</b> تم حل مشكلة عدم ظهور بعض الصور نهائياً برفعها كملف مباشر.
-3️⃣ <b>دقة كاملة بدون عشوائية:</b> يفهم كل الوضعيات الصريحة والحميمية بدقة متناهية.
-4️⃣ <b>أوامر الفيديو:</b> اكتب كلمة <code>فيديو</code> مع أي طلب.
-5️⃣ <b>تثبيت الوجه والشخصية:</b> <code>تثبيت شخصية: [الوصف]</code>.
-
-أرسل طلبك الآن وشاهد الواقعية!`;
+🔥 <b>كيف تستخدم البوت بسهولة:</b>
+• <b>لتوليد صورة فورية:</b> اكتب طلبك مباشرة (مثال: <code>بنت زنجية ب بزاز كبار</code>، <code>شب وبنت ع السرير</code>، <code>ساموراي</code>).
+• <b>لصناعة فيديو:</b> اكتب كلمة <b>فيديو</b> مع المشهد (مثال: <code>فيديو شب وبنت عم يبوسو بعض</code>).
+• <b>لتثبيت ملامح الشخصية:</b> اكتب: <code>تثبيت شخصية: [الوصف]</code>.
+• <b>لكسر قيود شات جي بي تي:</b> اكتب: <code>برومبت لكسر القيود</code>.`;
     await sendMessage(chatId, welcome);
     return;
   }
@@ -217,18 +216,29 @@ async function handleUpdate(update) {
   }
 
   // 5. أوامر الفيديو
-  const isVideoRequest = lower.includes('فيديو') || lower.includes('video') || lower.includes('متحرك') || lower.includes('kling') || lower.includes('runway') || lower.includes('luma');
+  const isVideoRequest = lower.startsWith('فيديو') || lower.includes('فيديو ') || lower.startsWith('اعمل فيديو') || lower.includes('video') || lower.includes('متحرك') || lower.includes('kling');
   if (isVideoRequest) {
-    const cleanTopic = text.replace(/(فيديو|video|بدي|اعملي|برمبت|برومبت)\s*/gi, '').trim();
-    const translatedSubject = translateArabicContext(cleanTopic || text);
+    const cleanTopic = text.replace(/(اعمل|فيديو|video|بدي|اعملي|برمبت|برومبت)\s*/gi, '').trim();
+    const target = cleanTopic && cleanTopic.length > 2 ? cleanTopic : "an intimate romantic scene between lovers";
+    const translatedSubject = translateArabicContext(target);
     const videoData = buildVideoPrompt(translatedSubject, text);
 
-    const videoReply = `🎬 <b>[أمر توليد فيديو ذكاء اصطناعي احترافي - AI Video Prompt]</b>\n🎫 <b>الرصيد المتبقي:</b> ${creditCheck.remaining}/${DAILY_LIMIT}\n\n<code>${escapeHtml(videoData.videoPrompt)}</code>\n\n🕹️ <b>حركة الكاميرا:</b> ${escapeHtml(videoData.cameraMovement)}\n🕹️ <b>حركة المشهد:</b> ${escapeHtml(videoData.motion)}`;
+    const videoReply = `🎬 <b>[أمر توليد فيديو ذكاء اصطناعي احترافي]</b>
+🎫 <b>الرصيد المتبقي:</b> ${creditCheck.remaining}/${DAILY_LIMIT}
+
+🎥 <b>[أمر الحركة والكاميرا جاهز للنسخ إلى Kling AI / Runway]:</b>
+<code>${escapeHtml(videoData.videoPrompt)}</code>
+
+═══════════════════
+
+🕹️ <b>حركة الكاميرا:</b> ${escapeHtml(videoData.cameraMovement)}
+🕹️ <b>حركة المشهد:</b> ${escapeHtml(videoData.motion)}
+💡 <i>انسخ الأمر في الأعلى وضعه في موقع توليد الفيديو لتحريك اللقطة بدقة عالية.</i>`;
     await sendMessage(chatId, videoReply, msg.message_id);
     return;
   }
 
-  // 6. توليد الصور المباشر فوتوريلزم (Photorealism)
+  // 6. توليد الصور المباشر فوتوريلزم بنظام White-Label (بدون ذكر أي جهة خارجية)
   let cleanText = text.replace(/^(بدي|اعملي|اعطيني|برمبت|برومبت|صورة|صوره)\s+/gi, '').trim();
   let translatedSubject = translateArabicContext(cleanText || text);
 
@@ -243,19 +253,18 @@ async function handleUpdate(update) {
 
   const imageUrl = getDirectFluxImageUrl(result.finalPrompt, 1024, 1024);
 
-  const captionText = `📸 <b>تصوير فوتوغرافي واقعي حقيقي (Flux Realism)</b> ⚡
+  // إخفاء اسم أي جهة خارجية تماماً (Private Label)
+  const captionText = `📸 <b>تم تجهيز وتوليد الصورة بنجاح</b> ⚡
 🎫 <b>الرصيد المتبقي:</b> ${creditCheck.remaining}/${DAILY_LIMIT}
 ${hasAnchor ? `👤 <i>(تم دمج الشخصية المثبتة)</i>\n` : ''}
 ⚡ <b>البرومبت الفوتوغرافي المستخدم:</b>
 <code>${escapeHtml(result.finalPrompt)}</code>`;
 
   try {
-    // 1. تحميل الصورة كـ Buffer أولاً لضمان عدم فشل تيليجرام نهائياً
     const imgBuffer = await fetchImageBuffer(imageUrl);
-    // 2. إرسالها كصورة حقيقية مباشرة
     await sendPhotoBuffer(chatId, imgBuffer, captionText, msg.message_id);
   } catch (err) {
-    console.error('Buffer delivery failed, fallback to direct url:', err.message);
+    console.error('Buffer delivery fallback:', err.message);
     try {
       await apiCall('sendPhoto', {
         chat_id: chatId,
@@ -265,7 +274,7 @@ ${hasAnchor ? `👤 <i>(تم دمج الشخصية المثبتة)</i>\n` : ''}
         reply_to_message_id: msg.message_id
       });
     } catch (urlErr) {
-      const fallbackMsg = `📸 <b>[أمر تصوير واقعي حقيقي جاهز للنسخ]</b>\n🎫 <b>الرصيد المتبقي:</b> ${creditCheck.remaining}/${DAILY_LIMIT}\n\n⚡ <b>الأمر:</b>\n<code>${escapeHtml(result.finalPrompt)}</code>\n\n🖼️ <b>رابط الصورة المباشرة:</b>\n<a href="${imageUrl}">اضغط هنا لفتح الصورة بجودة كاملة</a>`;
+      const fallbackMsg = `📸 <b>[أمر تصوير واقعي مخصص لطلبك]</b>\n🎫 <b>الرصيد المتبقي:</b> ${creditCheck.remaining}/${DAILY_LIMIT}\n\n⚡ <b>الأمر:</b>\n<code>${escapeHtml(result.finalPrompt)}</code>\n\n🖼️ <b>رابط الصورة المباشرة:</b>\n<a href="${imageUrl}">اضغط هنا لفتح الصورة بجودة كاملة</a>`;
       await sendMessage(chatId, fallbackMsg, msg.message_id);
     }
   }
@@ -274,7 +283,7 @@ ${hasAnchor ? `👤 <i>(تم دمج الشخصية المثبتة)</i>\n` : ''}
 let offset = 0;
 
 async function runLoop() {
-  console.log('🚀 بوت التيليجرام v10.0 (واقعية حقيقية + منع الأنمي + رفع مباشر) قيد الاستماع...');
+  console.log('🚀 بوت التيليجرام v11.0 (White-Label + دقة مطلقة للأعراق والجسد) قيد الاستماع...');
   
   while (true) {
     try {
