@@ -1,16 +1,16 @@
 /**
- * Telegram Prompt Architect Bot - Private Label Production Server v11.0
- * 1. 100% White-Label / Private Label (Completely removes any external engine name or attribution).
- * 2. Perfect Dialect & Explicit Anatomy Translation (e.g. "بنت زنجية ب بزاز كبار", "شلحها", "سكس").
- * 3. Intelligent Video Router: Prevents echoing generated video prompts back to the bot.
- * 4. Ultra-Fast In-Memory Buffer Delivery for guaranteed image rendering.
+ * Telegram Prompt Architect Bot - Private Label Production Server v16.0
+ * 1. Image-to-Image / Inpainting conditioning: Supports uploading a photo and modifying it directly (e.g. "ازل اللباس").
+ * 2. Exact facial likeness preservation using reference image injection.
+ * 3. 100% White-Label / Private Label.
+ * 4. Ultra-Fast In-Memory Buffer Delivery.
  */
 
 const https = require('https');
 const http = require('http');
 const { translateArabicContext, buildConcisePrompt } = require('./concise-engine');
 const { buildVideoPrompt } = require('./video-engine');
-const { getDirectFluxImageUrl, fetchImageBuffer } = require('./image-generator');
+const { getDirectFluxImageUrl, fetchImageBuffer, uploadTempCDN, downloadBuffer } = require('./image-generator');
 const { setUserCharacter, getUserCharacter, clearUserCharacter, applyCharacterAnchor } = require('./face-anchor');
 const { checkAndConsumeCredit, getUserStats, DAILY_LIMIT } = require('./credits-manager');
 
@@ -104,7 +104,7 @@ function sendPhotoBuffer(chatId, buffer, caption, replyToMessageId = null) {
         'Content-Type': `multipart/form-data; boundary=${boundary}`,
         'Content-Length': Buffer.byteLength(header) + buffer.length + Buffer.byteLength(footer)
       },
-      timeout: 30000
+      timeout: 35000
     }, (res) => {
       let body = '';
       res.on('data', chunk => body += chunk);
@@ -125,6 +125,15 @@ function sendPhotoBuffer(chatId, buffer, caption, replyToMessageId = null) {
     req.write(footer);
     req.end();
   });
+}
+
+async function getTelegramFileBuffer(fileId) {
+  const fileData = await apiCall('getFile', { file_id: fileId });
+  if (!fileData || !fileData.file_path) {
+    throw new Error('Could not get telegram file path');
+  }
+  const fileUrl = `https://api.telegram.org/file/bot${TOKEN}/${fileData.file_path}`;
+  return await downloadBuffer(fileUrl);
 }
 
 function generateTrueJailbreakPrompt(userTopic) {
@@ -155,12 +164,12 @@ async function handleUpdate(update) {
   const username = msg.from ? (msg.from.username || msg.from.first_name) : '';
   const text = (msg.text || msg.caption || '').trim();
   const lower = text.toLowerCase();
+  const hasPhoto = msg.photo && msg.photo.length > 0;
 
-  console.log(`[User ${username} (${userId})]:`, text || (msg.photo ? '[Photo]' : 'other'));
+  console.log(`[User ${username} (${userId})]:`, text || (hasPhoto ? '[Photo]' : 'other'));
 
-  // إذا أرسل المستخدم بالخطأ برومبت إنجليزي كبير (ناتج سابق)، نوجهه لكتابة طلبه
   if (text.length > 180 && (text.includes('hyperrealistic') || text.includes('cinematic video') || text.includes('photograph of'))) {
-    await sendMessage(chatId, `💡 <b>ملاحظة:</b> هذا برومبت إنجليزي مخصص للنسخ في مواقع التوليد (مثل Kling AI أو Midjourney).\n\nإذا أردت توليد صورة أو فيديو جديد، اكتب فكرتك فقط بالعربي وسيتكفل البوت بالباقي!`);
+    await sendMessage(chatId, `💡 <b>ملاحظة:</b> هذا برومبت إنجليزي مخصص للنسخ في مواقع التوليد (مثل Kling AI أو Midjourney).\n\nإذا أردت توليد صورة أو تعديل صورة، اكتب طلبك بالعربي وسيتكفل البوت بالباقي!`);
     return;
   }
 
@@ -172,10 +181,10 @@ async function handleUpdate(update) {
 🎯 <b>رصيدك اليومي المجاني:</b> <code>${stats.remaining}/${DAILY_LIMIT}</code> صورة/أمر (يتجدد تلقائياً كل 24 ساعة).
 
 🔥 <b>كيف تستخدم البوت بسهولة:</b>
-• <b>لتوليد صورة فورية:</b> اكتب طلبك مباشرة (مثال: <code>بنت زنجية ب بزاز كبار</code>، <code>شب وبنت ع السرير</code>، <code>ساموراي</code>).
+• <b>لتعديل صورة وإزالة اللباس مع الحفاظ على نفس الوجه:</b> أرسل الصورة واكتب معها (<code>ازل اللباس</code> أو <code>شلحها</code>).
+• <b>لتوليد صورة فورية:</b> اكتب طلبك مباشرة (مثال: <code>بنت زنجية ب بزاز كبار</code>، <code>شب وبنت ع السرير</code>).
 • <b>لصناعة فيديو:</b> اكتب كلمة <b>فيديو</b> مع المشهد (مثال: <code>فيديو شب وبنت عم يبوسو بعض</code>).
-• <b>لتثبيت ملامح الشخصية:</b> اكتب: <code>تثبيت شخصية: [الوصف]</code>.
-• <b>لكسر قيود شات جي بي تي:</b> اكتب: <code>برومبت لكسر القيود</code>.`;
+• <b>لتثبيت ملامح شخصية:</b> <code>تثبيت شخصية: [الوصف]</code>.`;
     await sendMessage(chatId, welcome);
     return;
   }
@@ -208,7 +217,7 @@ async function handleUpdate(update) {
 
   // 4. كسر القيود
   const isJailbreak = lower.includes('قيود') || lower.includes('كسر') || lower.includes('تخفيف') || lower.includes('jailbreak') || lower.includes('dan');
-  if (isJailbreak && !msg.photo) {
+  if (isJailbreak && !hasPhoto) {
     const jailbreakPrompt = generateTrueJailbreakPrompt(text);
     const reply = `🔓 <b>[برومبت كسر القيود الحقيقي لـ ChatGPT / Claude]</b>\n🎫 <b>الرصيد المتبقي:</b> ${creditCheck.remaining}/${DAILY_LIMIT}\n\n<code>${escapeHtml(jailbreakPrompt)}</code>`;
     await sendMessage(chatId, reply, msg.message_id);
@@ -217,7 +226,7 @@ async function handleUpdate(update) {
 
   // 5. أوامر الفيديو
   const isVideoRequest = lower.startsWith('فيديو') || lower.includes('فيديو ') || lower.startsWith('اعمل فيديو') || lower.includes('video') || lower.includes('متحرك') || lower.includes('kling');
-  if (isVideoRequest) {
+  if (isVideoRequest && !hasPhoto) {
     const cleanTopic = text.replace(/(اعمل|فيديو|video|بدي|اعملي|برمبت|برومبت)\s*/gi, '').trim();
     const target = cleanTopic && cleanTopic.length > 2 ? cleanTopic : "an intimate romantic scene between lovers";
     const translatedSubject = translateArabicContext(target);
@@ -232,32 +241,50 @@ async function handleUpdate(update) {
 ═══════════════════
 
 🕹️ <b>حركة الكاميرا:</b> ${escapeHtml(videoData.cameraMovement)}
-🕹️ <b>حركة المشهد:</b> ${escapeHtml(videoData.motion)}
-💡 <i>انسخ الأمر في الأعلى وضعه في موقع توليد الفيديو لتحريك اللقطة بدقة عالية.</i>`;
+🕹️ <b>حركة المشهد:</b> ${escapeHtml(videoData.motion)}`;
     await sendMessage(chatId, videoReply, msg.message_id);
     return;
   }
 
-  // 6. توليد الصور المباشر فوتوريلزم بنظام White-Label (بدون ذكر أي جهة خارجية)
-  let cleanText = text.replace(/^(بدي|اعملي|اعطيني|برمبت|برومبت|صورة|صوره)\s+/gi, '').trim();
-  let translatedSubject = translateArabicContext(cleanText || text);
+  // 6. مسار معالجة الصورة المرفقة (Image-to-Image / Inpainting conditioning)
+  let referenceImageUrl = null;
+  if (hasPhoto) {
+    try {
+      await apiCall('sendChatAction', { chat_id: chatId, action: 'upload_photo' });
+      // Get highest resolution photo from array
+      const bestPhoto = msg.photo[msg.photo.length - 1];
+      const photoBuffer = await getTelegramFileBuffer(bestPhoto.file_id);
+      referenceImageUrl = await uploadTempCDN(photoBuffer);
+      console.log('Successfully hosted reference image for conditioning:', referenceImageUrl);
+    } catch (photoErr) {
+      console.error('Failed to prepare reference photo:', photoErr.message);
+    }
+  }
+
+  let promptInstruction = text;
+  if (hasPhoto && (!promptInstruction || promptInstruction.length < 2)) {
+    promptInstruction = "ازل اللباس عنها واجعلها عارية تماما";
+  }
+
+  let cleanText = promptInstruction.replace(/^(بدي|اعملي|اعطيني|برمبت|برومبت|صورة|صوره)\s+/gi, '').trim();
+  let translatedSubject = translateArabicContext(cleanText || promptInstruction);
 
   const hasAnchor = getUserCharacter(userId);
-  if (hasAnchor) {
+  if (hasAnchor && !referenceImageUrl) {
     translatedSubject = applyCharacterAnchor(userId, translatedSubject);
   }
 
-  const result = buildConcisePrompt(translatedSubject, "romantic", cleanText || text);
+  const result = buildConcisePrompt(translatedSubject, "romantic", cleanText || promptInstruction);
 
   await apiCall('sendChatAction', { chat_id: chatId, action: 'upload_photo' });
 
-  const imageUrl = getDirectFluxImageUrl(result.finalPrompt, 1024, 1024);
+  // Use 768x1024 portrait ratio to keep anatomy intact
+  const imageUrl = getDirectFluxImageUrl(result.finalPrompt, 768, 1024, referenceImageUrl);
 
-  // إخفاء اسم أي جهة خارجية تماماً (Private Label)
-  const captionText = `📸 <b>تم تجهيز وتوليد الصورة بنجاح</b> ⚡
+  const captionText = `📸 <b>تمت المعالجة والتوليد بنجاح</b> ⚡
 🎫 <b>الرصيد المتبقي:</b> ${creditCheck.remaining}/${DAILY_LIMIT}
-${hasAnchor ? `👤 <i>(تم دمج الشخصية المثبتة)</i>\n` : ''}
-⚡ <b>البرومبت الفوتوغرافي المستخدم:</b>
+${referenceImageUrl ? `🎯 <i>(تم التعديل بناءً على ملامح صورتك المرفقة)</i>\n` : ''}
+⚡ <b>البرومبت المستخدم:</b>
 <code>${escapeHtml(result.finalPrompt)}</code>`;
 
   try {
@@ -274,7 +301,7 @@ ${hasAnchor ? `👤 <i>(تم دمج الشخصية المثبتة)</i>\n` : ''}
         reply_to_message_id: msg.message_id
       });
     } catch (urlErr) {
-      const fallbackMsg = `📸 <b>[أمر تصوير واقعي مخصص لطلبك]</b>\n🎫 <b>الرصيد المتبقي:</b> ${creditCheck.remaining}/${DAILY_LIMIT}\n\n⚡ <b>الأمر:</b>\n<code>${escapeHtml(result.finalPrompt)}</code>\n\n🖼️ <b>رابط الصورة المباشرة:</b>\n<a href="${imageUrl}">اضغط هنا لفتح الصورة بجودة كاملة</a>`;
+      const fallbackMsg = `📸 <b>[تمت معالجة الصورة بنجاح]</b>\n🎫 <b>الرصيد المتبقي:</b> ${creditCheck.remaining}/${DAILY_LIMIT}\n\n🖼️ <b>رابط الصورة المباشرة:</b>\n<a href="${imageUrl}">اضغط هنا لفتح الصورة بجودة كاملة</a>`;
       await sendMessage(chatId, fallbackMsg, msg.message_id);
     }
   }
@@ -283,7 +310,7 @@ ${hasAnchor ? `👤 <i>(تم دمج الشخصية المثبتة)</i>\n` : ''}
 let offset = 0;
 
 async function runLoop() {
-  console.log('🚀 بوت التيليجرام v11.0 (White-Label + دقة مطلقة للأعراق والجسد) قيد الاستماع...');
+  console.log('🚀 بوت التيليجرام v16.0 (Image-to-Image + دعم تعديل الصور المرفقة) قيد الاستماع...');
   
   while (true) {
     try {
