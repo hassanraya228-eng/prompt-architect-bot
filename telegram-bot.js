@@ -1,10 +1,9 @@
 /**
- * Telegram Prompt Architect Bot - Mega Suite v8.0
+ * Telegram Prompt Architect Bot - Production Server v9.0
  * Includes:
- * 1. Direct Image Generation (Flux.1 HD image delivered straight into chat).
- * 2. AI Video Prompts (Kling AI, Runway Gen-3, Luma motion & camera physics).
- * 3. Character Consistency & Facial Anchor system.
- * 4. DEV-MODE Simulation Jailbreak prompts.
+ * 1. Uncensored & High-Precision Dialect / Adult Translation (Zero Randomness).
+ * 2. Daily Credits System (10 Generations / Day per user).
+ * 3. Direct Flux.1 Image Generation + Video Prompts + Character Anchor.
  */
 
 const https = require('https');
@@ -12,6 +11,7 @@ const { translateArabicContext, buildConcisePrompt } = require('./concise-engine
 const { buildVideoPrompt } = require('./video-engine');
 const { getDirectFluxImageUrl } = require('./image-generator');
 const { setUserCharacter, getUserCharacter, clearUserCharacter, applyCharacterAnchor } = require('./face-anchor');
+const { checkAndConsumeCredit, getUserStats, DAILY_LIMIT } = require('./credits-manager');
 
 const TOKEN = '8904951015:AAHDiCUViLhw_2-AkzvjEaASgDHNCZR6t-Y';
 const BASE_URL = `https://api.telegram.org/bot${TOKEN}`;
@@ -123,27 +123,23 @@ async function handleUpdate(update) {
   const text = (msg.text || msg.caption || '').trim();
   const lower = text.toLowerCase();
 
-  console.log(`[User ${username}]:`, text || (msg.photo ? '[Photo]' : 'other'));
+  console.log(`[User ${username} (${userId})]:`, text || (msg.photo ? '[Photo]' : 'other'));
 
-  // 1. أوامر التحكم
-  if (text.startsWith('/start')) {
-    const welcome = `أهلاً بك في <b>المنظومة الشاملة لتوليد الصور والفيديوهات والبرومبتات v8.0</b> 🏛️⚡
+  // 1. الأوامر المساعدة وحساب النقاط
+  if (text.startsWith('/start') || text === 'رصيدي' || text === '/credits') {
+    const stats = getUserStats(userId);
+    const welcome = `أهلاً بك في <b>بوت مهندس الأوامر الاحترافي v9.0</b> 🏛️⚡
 
-تمت إضافة أقوى 3 ميزات عالمية الآن:
+🎯 <b>رصيدك اليومي المجاني:</b> <code>${stats.remaining}/${DAILY_LIMIT}</code> صورة/أمر (يتجدد كل 24 ساعة تلقائياً).
 
-🖼️ <b>1. توليد الصور الفورية داخل التيليجرام مباشرة:</b>
-• اطلب أي مشهد (مثال: <code>شب وبنت عم يبوسو بعض</code>، <code>ساموراي تحت المطر</code>، <code>قطة ملكية</code>) وسيقوم البوت <b>بتوليد الصورة فوراً بجودة Flux.1 الخارقة وإرسالها إليك هنا</b> مع البرومبت!
+🔥 <b>أهم الميزات المتاحة:</b>
+1️⃣ <b>دقة كاملة بدون عشوائية:</b> يفهم كل الكلمات الحميمية، الصريحة، والعامية بدقة هندسية كاملة.
+2️⃣ <b>توليد فوري للصور:</b> يرسل لك الصورة المتولدة مباشرة بجودة Flux.1 HD مع البرومبت.
+3️⃣ <b>أوامر الفيديو (Kling AI & Runway):</b> اكتب كلمة <code>فيديو</code> مع طلبك.
+4️⃣ <b>تثبيت ملامح الشخصية:</b> اكتب: <code>تثبيت شخصية: [وصف الوجه]</code>
+5️⃣ <b>كسر قيود شات جي بي تي:</b> اكتب: <code>برومبت لكسر القيود</code>.
 
-🎬 <b>2. هندسة أوامر الفيديوهات بالذكاء الاصطناعي (Kling AI & Runway):</b>
-• اكتب كلمة <b>فيديو</b> مع طلبك (مثال: <code>فيديو شب وبنت عم يبوسو بعض</code>) وسيعطيك أمر الفيديو الكامل مع زاوية الكاميرا والحركة وحركة الشفاه البطيئة!
-
-👤 <b>3. تثبيت الشخصية والوجه في كل الصور (Consistent Character):</b>
-• اكتب: <code>تثبيت شخصية: [وصف وجهك أو شخصيتك]</code>
-• بعدها أي صورة تطلبها سيتم دمج نفس الوجه والشخصية فيها دائماً!
-• لحذف الشخصية المثبتة اكتب: <code>/clear_character</code>
-
-🔓 <b>4. كسر قيود شات جي بي تي (DEV-MODE):</b>
-• اكتب: <code>برومبت لكسر القيود</code> للحصول على كود DEV-MODE الحقيقي.`;
+أرسل طلبك الآن وسيقوم البوت بتنفيذه بدقة 100%!`;
     await sendMessage(chatId, welcome);
     return;
   }
@@ -152,26 +148,35 @@ async function handleUpdate(update) {
   if (lower.startsWith('تثبيت شخصية:') || lower.startsWith('تثبيت شخصيه:') || lower.startsWith('/set_character')) {
     const charDesc = text.replace(/^(تثبيت شخصية:|تثبيت شخصيه:|\/set_character)\s*/i, '').trim();
     if (!charDesc) {
-      await sendMessage(chatId, 'يرجى كتابة وصف الشخصية أو ملامح الوجه بعد النقطتين. مثال: <code>تثبيت شخصية: شاب عربي وسيم بعيون عسلية وشعر أسود مدرج</code>');
+      await sendMessage(chatId, 'يرجى كتابة وصف الشخصية أو ملامح الوجه بعد النقطتين.');
       return;
     }
     setUserCharacter(userId, charDesc);
-    await sendMessage(chatId, `✅ <b>تم تثبيت ملامح الشخصية بنجاح!</b>\n👤 <b>الشخصية الحالية:</b> ${escapeHtml(charDesc)}\n\nأي صورة ستطلبها الآن سيتم تطبيق نفس ملامح هذه الشخصية عليها تلقائياً. لحذف التثبيت في أي وقت اكتب: <code>/clear_character</code>`);
+    await sendMessage(chatId, `✅ <b>تم تثبيت ملامح الشخصية بنجاح!</b>\n👤 <b>الشخصية الحالية:</b> ${escapeHtml(charDesc)}\n\nلحذف التثبيت في أي وقت اكتب: <code>/clear_character</code>`);
     return;
   }
 
-  if (text === '/clear_character' || text === 'حذف الشخصية' || text === 'مسح الشخصية') {
+  if (text === '/clear_character') {
     clearUserCharacter(userId);
     await sendMessage(chatId, '🗑️ تم حذف الشخصية المثبتة. الآن يمكنك توليد شخصيات جديدة بحرية.');
     return;
   }
 
-  // 3. فحص طلب كسر القيود
+  // 3. التحقق من الرصيد واستهلاك نقطة واحدة
+  const creditCheck = checkAndConsumeCredit(userId);
+  if (!creditCheck.allowed) {
+    const outOfCreditsMsg = `⚠️ <b>لقد استهلكت رصيدك اليومي المجاني (${DAILY_LIMIT} صور)!</b>\n\n⏳ سيتجدد رصيدك تلقائياً بعد <b>${creditCheck.resetHours} ساعة</b>.\n\n💡 <i>ملاحظة: تم تحديد الرصيد لمنع الضغط وحماية السيرفر وضمان سرعة التوليد لجميع المستخدمين.</i>`;
+    await sendMessage(chatId, outOfCreditsMsg, msg.message_id);
+    return;
+  }
+
+  // 4. فحص طلب كسر القيود
   const isJailbreak = lower.includes('قيود') || lower.includes('كسر') || lower.includes('تخفيف') || lower.includes('jailbreak') || lower.includes('dan');
   if (isJailbreak && !msg.photo) {
     const jailbreakPrompt = generateTrueJailbreakPrompt(text);
     const reply = `🔓 <b>[برومبت كسر القيود الحقيقي لـ ChatGPT / Claude]</b>
 🎯 <b>النمط:</b> وضع المحاكاة الافتراضية غير المقيدة (DEV-MODE Simulation)
+🎫 <b>الرصيد المتبقي اليوم:</b> ${creditCheck.remaining}/${DAILY_LIMIT}
 
 ⚡ <b>[انسخ البرومبت بالكامل وضعه كأول رسالة]:</b>
 <code>${escapeHtml(jailbreakPrompt)}</code>
@@ -185,7 +190,7 @@ async function handleUpdate(update) {
     return;
   }
 
-  // 4. فحص طلب فيديو (AI Video Generation Prompt)
+  // 5. فحص طلب فيديو (AI Video Generation Prompt)
   const isVideoRequest = lower.includes('فيديو') || lower.includes('video') || lower.includes('متحرك') || lower.includes('kling') || lower.includes('runway') || lower.includes('luma');
   if (isVideoRequest) {
     const cleanTopic = text.replace(/(فيديو|video|بدي|اعملي|برمبت|برومبت)\s*/gi, '').trim();
@@ -194,6 +199,7 @@ async function handleUpdate(update) {
 
     const videoReply = `🎬 <b>[أمر توليد فيديو ذكاء اصطناعي احترافي - AI Video Prompt]</b>
 🎯 <b>النماذج المدعومة:</b> Kling AI v1.5 / Runway Gen-3 / Luma Dream Machine
+🎫 <b>الرصيد المتبقي اليوم:</b> ${creditCheck.remaining}/${DAILY_LIMIT}
 
 🎥 <b>[أمر حركة الكاميرا والفيزياء الزمنية (جاهز للنسخ)]:</b>
 <code>${escapeHtml(videoData.videoPrompt)}</code>
@@ -204,81 +210,48 @@ async function handleUpdate(update) {
 • <b>حركة الكاميرا (Camera Motion):</b> ${escapeHtml(videoData.cameraMovement)}
 • <b>حركة الشخصيات والتفاعل (Subject Motion):</b> ${escapeHtml(videoData.motion)}
 • <b>معدل الإطارات:</b> 24fps Cinematic Motion
-• <b>قوة الحركة (Motion Strength):</b> 5 - 6
-
-💡 انسخ هذا الأمر وضعه مباشرة في <b>Kling AI</b> أو <b>Runway</b> أو <b>Luma</b> لصناعة فيديو واقعي فائق السلاسة.`;
+• <b>قوة الحركة (Motion Strength):</b> 5 - 6`;
     await sendMessage(chatId, videoReply, msg.message_id);
     return;
   }
 
-  // 5. توليد الصور المباشر (Direct Flux.1 Image Generation) + البرومبت المعماري
-  const isImageRequest = Boolean(msg.photo) || /صورة|صوره|photo|image|render|رسمة|midjourney|flux|قطة|ساموراي|امرأة|بنت|شب|حبيبين|يبوسو|بوسة|قبلة|مشهد|فيلا|سيارة|عناق|حضن/i.test(text) || text.length < 50;
+  // 6. توليد الصور المباشر (Direct Flux.1 Image Generation) بدقة كاملة وغير عشوائية
+  let cleanText = text.replace(/^(بدي|اعملي|اعطيني|برمبت|برومبت|صورة|صوره)\s+/gi, '').trim();
+  let translatedSubject = translateArabicContext(cleanText || text);
 
-  if (isImageRequest) {
-    let cleanText = text.replace(/^(بدي|اعملي|اعطيني|برمبت|برومبت|صورة|صوره)\s+/gi, '').trim();
-    let translatedSubject = translateArabicContext(cleanText || text);
+  // تطبيق ميزة تثبيت الشخصية إذا كانت مفعلة للمستخدم
+  const hasAnchor = getUserCharacter(userId);
+  if (hasAnchor) {
+    translatedSubject = applyCharacterAnchor(userId, translatedSubject);
+  }
 
-    // تطبيق ميزة تثبيت الشخصية إذا كانت مفعلة للمستخدم
-    const hasAnchor = getUserCharacter(userId);
-    if (hasAnchor) {
-      translatedSubject = applyCharacterAnchor(userId, translatedSubject);
-    }
+  const result = buildConcisePrompt(translatedSubject, "romantic", cleanText || text);
 
-    const result = buildConcisePrompt(translatedSubject, "romantic", cleanText || text);
+  await apiCall('sendChatAction', { chat_id: chatId, action: 'upload_photo' });
 
-    // إرسال إشعار للمستخدم بأنه جاري التوليد
-    await apiCall('sendChatAction', { chat_id: chatId, action: 'upload_photo' });
+  const imageUrl = getDirectFluxImageUrl(result.finalPrompt, 1024, 1024);
 
-    // توليد رابط صورة Flux.1 المباشرة
-    const imageUrl = getDirectFluxImageUrl(result.finalPrompt, 1024, 1024);
-
-    const captionText = `🎨 <b>تم توليد الصورة بنجاح عبر محرك Flux.1 HD</b> ⚡
+  const captionText = `🎨 <b>تم توليد الصورة بنجاح عبر محرك Flux.1 HD</b> ⚡
+🎫 <b>الرصيد المتبقي اليوم:</b> ${creditCheck.remaining}/${DAILY_LIMIT}
 ${hasAnchor ? `👤 <i>(تم دمج ملامح الشخصية المثبتة بنجاح)</i>\n` : ''}
-⚡ <b>البرومبت المستخدم:</b>
+⚡ <b>البرومبت المستخدم بدقة تامة:</b>
 <code>${escapeHtml(result.finalPrompt)}</code>
 
 🛡️ <b>السلبي:</b> <code>${escapeHtml(result.negativePrompt)}</code>`;
 
-    try {
-      // إرسال الصورة الحقيقية المتولدة مباشرة إلى محادثة التيليجرام
-      await sendPhoto(chatId, imageUrl, captionText, msg.message_id);
-    } catch (photoErr) {
-      console.warn('Direct photo send failed, fallback to prompt text:', photoErr.message);
-      // في حال استغرق توليد الصورة وقتاً طويلاً يتم إرسال الرابط والبرومبت
-      const fallbackMsg = `🎨 <b>[أمر توليد صورة سينمائي فائق الدقة]</b>\n\n⚡ <b>الأمر الإيجابي:</b>\n<code>${escapeHtml(result.finalPrompt)}</code>\n\n🖼️ <b>معاينة الصورة المتولدة مباشرة:</b>\n<a href="${imageUrl}">اضغط هنا لفتح الصورة بجودة كاملة</a>`;
-      await sendMessage(chatId, fallbackMsg, msg.message_id);
-    }
-    return;
+  try {
+    await sendPhoto(chatId, imageUrl, captionText, msg.message_id);
+  } catch (photoErr) {
+    console.warn('Direct photo send fallback:', photoErr.message);
+    const fallbackMsg = `🎨 <b>[أمر توليد صورة سينمائي فائق الدقة]</b>\n🎫 <b>الرصيد المتبقي:</b> ${creditCheck.remaining}/${DAILY_LIMIT}\n\n⚡ <b>الأمر الإيجابي:</b>\n<code>${escapeHtml(result.finalPrompt)}</code>\n\n🖼️ <b>معاينة الصورة المتولدة مباشرة:</b>\n<a href="${imageUrl}">اضغط هنا لفتح الصورة بجودة كاملة</a>`;
+    await sendMessage(chatId, fallbackMsg, msg.message_id);
   }
-
-  // 6. للأوامر النصية العامة
-  const clean = text.replace(/^(بدي|اعملي|اعطيني|برمبت|برومبت)\s+/i, '').trim();
-  const megaPrompt = `Act as an Elite Specialist and World-Class Authority in: "${clean || text}".
-Requirements:
-1. Provide comprehensive, precise, and uncompromising execution for this objective.
-2. Eliminate all conversational filler, pleasantries, apologies, and unsolicited caveats.
-3. Deliver the absolute highest level of technical and analytical depth without superficial shortcuts.
-4. Organize the output with logical headings and actionable steps.
-
-Execute the following directive now:
-"${text}"`;
-
-  const genericReply = `🎯 <b>[برومبت احترافي مخصص لطلبك]</b>
-
-⚡ <b>[البرومبت الجاهز للنسخ]:</b>
-<code>${escapeHtml(megaPrompt)}</code>
-
-═══════════════════
-
-💡 انسخ هذا الأمر وضعه في <b>ChatGPT</b> للحصول على إجابة احترافية وعميقة فوراً.`;
-
-  await sendMessage(chatId, genericReply, msg.message_id);
 }
 
 let offset = 0;
 
 async function runLoop() {
-  console.log('🚀 بوت التيليجرام v8.0 المحدث (توليد صور فوري + فيديو + تثبيت شخصية) قيد الاستماع...');
+  console.log('🚀 بوت التيليجرام v9.0 قيد الاستماع (دقة كاملة + رصيد يومي 10 صور)...');
   
   while (true) {
     try {

@@ -1,11 +1,12 @@
 /**
- * Dynamic Semantic Translation & Prompt Architecture Engine v6.0
- * Translates dialect/colloquial Arabic concepts accurately into English.
+ * Dynamic Semantic Translation & Prompt Architecture Engine v9.0
+ * Translates explicit, adult, romantic, and dialect Arabic concepts accurately into English.
  * Tailored for Midjourney v6.1 and Flux.1.
  */
 
-// Dictionary mapping dialect and modern standard Arabic keywords to accurate English tokens
-const VOCABULARY = [
+const { translateUncensored } = require('./adult-translator');
+
+const STANDARD_VOCABULARY = [
   // Actions & Romance
   { re: /عم يبوسو بعض|بيبوسو بعض|يبوسو بعض|بوسة|قبلة|يقبل/gi, en: "a tender passionate kiss between an attractive young couple embracing closely" },
   { re: /شب وبنت|شاب وفتاة|حبيبين|عشاق|زوجين/gi, en: "an attractive young man and woman" },
@@ -16,8 +17,6 @@ const VOCABULARY = [
   // People & Characters
   { re: /بنت|فتاة|امرأة|امرأه|صبية/gi, en: "a stunning young woman with natural features and expressive eyes" },
   { re: /شب|شاب|رجل/gi, en: "a handsome young man" },
-  { re: /طفل|طفلة/gi, en: "a playful cheerful child" },
-  { re: /عجوز|مسن/gi, en: "an elderly person with weathered dignified facial lines" },
   { re: /محارب|ساموراي|فارس/gi, en: "a stoic warrior in detailed traditional armor" },
   { re: /رائد فضاء/gi, en: "a seasoned astronaut in high-tech exploratory suit" },
   { re: /سايبربانك/gi, en: "a cybernetic operative with glowing subcutaneous neon implants" },
@@ -27,27 +26,26 @@ const VOCABULARY = [
   { re: /كلب/gi, en: "a majestic Siberian Husky with alert piercing gaze" },
   { re: /تنين/gi, en: "a colossal obsidian elder dragon with pulsing ember veins" },
   { re: /قهوة|فنجان/gi, en: "an artisanal ceramic espresso cup with delicate rosetta latte art" },
-  { re: /سيارة|سياره/gi, en: "a luxury vintage sports car" },
-  { re: /فيلا|بيت/gi, en: "a contemporary minimalist architectural villa" },
 
   // Environments & Settings
-  { re: /غرفة نوم|تخت|سرير/gi, en: "cozy bedroom with softly rumpled linen sheets" },
+  { re: /غرفة نوم|تخت|سرير/gi, en: "cozy bedroom with softly rumpled luxury linen sheets" },
   { re: /بحر|شاطئ/gi, en: "serene coastal shoreline at twilight" },
-  { re: /مطر|تحت المطر|ممطر/gi, en: "rain-drenched street with reflective wet pavement" },
-  { re: /شارع|مدينة/gi, en: "cinematic European cobblestone street" },
-  { re: /غابة|طبيعة/gi, en: "misty ancient forest with atmospheric sunbeams" },
-  { re: /غروب|وقت الغروب/gi, en: "golden hour twilight glow" },
-  { re: /ليل|بالليل/gi, en: "atmospheric nighttime ambiance with soft amber practical lights" }
+  { re: /مطر|تحت المطر|ممطر/gi, en: "rain-drenched street with reflective wet pavement" }
 ];
 
 function translateArabicContext(text) {
+  // First check uncensored adult & intimate dictionary
+  const adultMatch = translateUncensored(text);
+  if (adultMatch) {
+    return adultMatch;
+  }
+
   let lower = text.trim();
   let detectedParts = [];
 
-  for (const item of VOCABULARY) {
+  for (const item of STANDARD_VOCABULARY) {
     if (item.re.test(lower)) {
       detectedParts.push(item.en);
-      // Remove matched part to prevent duplicate matching
       lower = lower.replace(item.re, " ");
     }
   }
@@ -56,12 +54,11 @@ function translateArabicContext(text) {
     return detectedParts.join(", ");
   }
 
-  // Fallback: If no dialect match, return standard descriptive english
   return `cinematic candid scene depicting ${text}`;
 }
 
 function buildConcisePrompt(translatedSubject, mood, originalArabic) {
-  const isRomantic = /kiss|embrace|intimate|romantic|يبوسو|قبلة|حميم/i.test(translatedSubject) || /حميم|بوس|حب|رومانسي/i.test(originalArabic);
+  const isRomantic = /kiss|embrace|intimate|romantic|sensual|erotic|lovemaking|bikini|lingerie|يبوسو|قبلة|حميم|ضاجع|طيز|مؤخرة/i.test(translatedSubject) || /حميم|بوس|حب|رومانسي|سكس|طيز|مؤخرة|ضاجع|بكيني/i.test(originalArabic);
   const isNight = /night|ليل/i.test(originalArabic);
   const isRain = /rain|مطر/i.test(originalArabic);
 
@@ -73,7 +70,7 @@ function buildConcisePrompt(translatedSubject, mood, originalArabic) {
   if (isRomantic) {
     environment = isRain 
       ? "rainy city street under a glowing streetlight, delicate water droplets caught in air" 
-      : (isNight ? "warm atmospheric bedroom, soft evening ambient glow" : "warm sunlit room, gentle sheer curtains drifting in breeze");
+      : (isNight ? "warm atmospheric bedroom, soft evening ambient glow" : "warm dimly lit bedroom, luxury rumpled linen sheets, sensual mood");
     lighting = "soft golden rim lighting, warm candlelight accents, gentle cinematic shadow falloff";
     camera = "intimate 50mm f/1.4 medium close-up, eye-level framing, shallow depth of field";
   } else {
