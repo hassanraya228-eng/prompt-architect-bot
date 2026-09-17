@@ -1,44 +1,46 @@
 /**
- * Dynamic Semantic Translation & Realism Engine v10.0
- * Pure Photorealism: Absolute elimination of Anime / 3D / Cartoon looks.
+ * Dynamic Semantic Translation Engine v13.0
+ * Zero Dilution: Preserves 100% of user intent, acts, anatomy, and explicit details.
  */
 
 const { translateUncensored } = require('./adult-translator');
 
-const STANDARD_VOCABULARY = [
-  // Actions & Romance
-  { re: /عم يبوسو بعض|بيبوسو بعض|يبوسو بعض|بوسة|قبلة|يقبل/gi, en: "hyperrealistic candid photograph of a tender passionate kiss between an attractive young couple embracing closely" },
-  { re: /شب وبنت|شاب وفتاة|حبيبين|عشاق|زوجين/gi, en: "hyperrealistic real life photograph of an attractive young man and woman" },
-  { re: /عناق|حضن|حاضنين بعض|بيحضنو بعض/gi, en: "hyperrealistic photograph of two people intimately embracing with genuine emotional warmth" },
-  { re: /مشهد حميمي|حميمي|حميمية/gi, en: "candid 35mm film photograph of an intimate romantic moment, natural realistic skin tones" },
-  { re: /رومانسي|رومانسية/gi, en: "realistic romantic atmosphere, warm natural lighting" },
-
-  // People & Characters
-  { re: /بنت|فتاة|امرأة|امرأه|صبية/gi, en: "hyperrealistic 35mm portrait photograph of an alluring natural woman, authentic skin pores, real human face" },
-  { re: /شب|شاب|رجل/gi, en: "hyperrealistic portrait photograph of a handsome young man, real human features" },
-  { re: /محارب|ساموراي|فارس/gi, en: "realistic historical documentary photograph of a stoic warrior in authentic weathered armor" },
-  { re: /رائد فضاء/gi, en: "authentic NASA archival photograph of a seasoned astronaut in space suit" },
-
-  // Animals & Objects
-  { re: /قطة|قط|بسة/gi, en: "National Geographic wildlife photograph of an elegant British Shorthair cat, ultra sharp eye focus" },
-  { re: /كلب/gi, en: "candid realistic photograph of a Siberian Husky, sharp fur texture" },
-
-  // Environments
-  { re: /غرفة نوم|تخت|سرير/gi, en: "real life cozy bedroom, luxury rumpled linen bed sheets, candid ambient light" },
-  { re: /بحر|شاطئ/gi, en: "authentic coastal beach shoreline at sunset, natural oceanic mist" },
-  { re: /مطر|تحت المطر|ممطر/gi, en: "real street photograph in gentle rain, authentic liquid reflections" }
+const GENERAL_VOCABULARY = [
+  { re: /بنت|فتاة|امرأة|امرأه|صبية/gi, en: "attractive natural woman" },
+  { re: /شب|شاب|رجل/gi, en: "handsome young man" },
+  { re: /محارب|ساموراي|فارس/gi, en: "stoic warrior in authentic weathered armor" },
+  { re: /رائد فضاء/gi, en: "seasoned astronaut in space suit" },
+  { re: /قطة|قط|بسة/gi, en: "British Shorthair cat, ultra sharp eye focus" },
+  { re: /كلب/gi, en: "Siberian Husky, sharp fur texture" },
+  { re: /بحر|شاطئ/gi, en: "coastal beach shoreline at sunset" },
+  { re: /مطر|تحت المطر|ممطر/gi, en: "street in gentle rain, wet pavement reflections" },
+  { re: /سيارة|سيارة فخمة/gi, en: "luxury modern supercar" },
+  { re: /شارع|مدينة/gi, en: "bustling urban city street" }
 ];
 
 function translateArabicContext(text) {
-  const adultMatch = translateUncensored(text);
-  if (adultMatch) {
-    return adultMatch;
+  // First check uncensored literal dictionary
+  const adultResult = translateUncensored(text);
+  if (adultResult.hasMatch) {
+    let combined = adultResult.translated;
+    // Check if remaining text has general words
+    if (adultResult.remaining && adultResult.remaining.length > 2) {
+      let rem = adultResult.remaining;
+      for (const item of GENERAL_VOCABULARY) {
+        if (item.re.test(rem)) {
+          combined += `, ${item.en}`;
+          rem = rem.replace(item.re, " ");
+        }
+      }
+    }
+    return combined;
   }
 
+  // If standard/non-adult query
   let lower = text.trim();
   let detectedParts = [];
 
-  for (const item of STANDARD_VOCABULARY) {
+  for (const item of GENERAL_VOCABULARY) {
     if (item.re.test(lower)) {
       detectedParts.push(item.en);
       lower = lower.replace(item.re, " ");
@@ -49,29 +51,27 @@ function translateArabicContext(text) {
     return detectedParts.join(", ");
   }
 
-  return `hyperrealistic authentic 35mm photograph of ${text}, real human skin texture, natural life capture`;
+  return text;
 }
 
 function buildConcisePrompt(translatedSubject, mood, originalArabic) {
-  const isRomantic = /kiss|embrace|intimate|romantic|sensual|erotic|lovemaking|bikini|lingerie|يبوسو|قبلة|حميم|ضاجع|طيز|مؤخرة|سكس|كسها/i.test(translatedSubject) || /حميم|بوس|حب|رومانسي|سكس|طيز|مؤخرة|ضاجع|بكيني|كس/i.test(originalArabic);
-  const isNight = /night|ليل/i.test(originalArabic);
-  const isRain = /rain|مطر/i.test(originalArabic);
+  const isAdultOrExplicit = /sex|penetration|naked|nude|vagina|pussy|penis|cock|tits|breasts|doggystyle|oral|cunnilingus|masturbation|anal|french kiss|undressing|bikini|lingerie|سكس|نيك|ضاجع|طيز|كس|بزاز|شلح|زب|قضيب|صدر/i.test(translatedSubject) || /سكس|نيك|ضاجع|طيز|كس|بزاز|شلح|زب|قضيب|صدر|صدرها|صدره|بكيني|شهوة|حميم/i.test(originalArabic);
 
   let environment = "";
   let lighting = "";
-  let camera = "authentic 35mm camera, 50mm f/1.4 prime lens, candid eye-level shot";
-  let medium = "uncompressed raw photograph, Kodak Portra 400 aesthetic, realistic human skin pores, authentic cinematic still";
+  let camera = "35mm camera, 50mm f/1.4 lens, candid realistic framing";
+  let medium = "authentic RAW color photograph, natural skin pores and texture, Kodak Portra 400";
 
-  if (isRomantic) {
-    environment = isRain 
-      ? "rain-soaked nighttime urban setting under golden streetlights" 
-      : (isNight ? "warm dimly lit bedroom with soft candlelight glow" : "warm sunlit bedroom, rumpled linen sheets, natural soft ambient shadows");
-    lighting = "soft warm golden hour lighting, gentle rim light, subtle natural shadows";
+  if (isAdultOrExplicit) {
+    // Keep exact user subject as dominant focus, add only realistic photography grounding
+    environment = "dimly lit luxury bedroom, rumpled linen sheets";
+    lighting = "warm soft ambient lighting, gentle natural skin reflections";
   } else {
-    environment = "realistic everyday environment with natural depth of field";
-    lighting = "natural diffused daylight, realistic soft shadows";
+    environment = "natural realistic environment";
+    lighting = "natural diffused lighting, authentic soft shadows";
   }
 
+  // Put user subject first and unfiltered
   const promptParts = [
     translatedSubject,
     environment,
@@ -83,23 +83,22 @@ function buildConcisePrompt(translatedSubject, mood, originalArabic) {
   const finalPrompt = promptParts.filter(Boolean).join(", ");
   const wordCount = finalPrompt.split(/\s+/).length;
 
-  // STRICT NEGATIVE PROMPT TO BLOCK ANIME AND 3D MODELS
-  const negativePrompt = "anime, cartoon, drawing, illustration, 3d render, CGI, digital painting, doll, plastic skin, airbrushed, unreal engine, octane render, fake, oversaturated, deformed hands, extra fingers, bad anatomy, bad face, crossed eyes, blurry, watermark, text";
+  const negativePrompt = "anime, cartoon, drawing, illustration, 3d render, CGI, digital painting, doll, plastic skin, airbrushed, unreal engine, fake, blurry, watermark, bad anatomy, deformed eyes, extra limbs";
 
   const layersAr = {
     subject: translatedSubject,
     environment: environment,
-    medium: "تصوير فوتوغرافي واقعي 35mm حقيقي (مستبعد منه الأنمي والرسم بالكامل)",
+    medium: "تصوير واقعي صريح 35mm فوتوغرافي بدون تلطيف أو رقابة",
     lighting: lighting,
     composition: camera,
-    technical: "واقعية بشرية حقيقية، ألوان طبيعية، خالية تماماً من النمط الكرتوني أو الثري دي"
+    technical: "دقة تشريحية كاملة، ألوان طبيعية حقيقية، بدون نمط كرتوني"
   };
 
   const settings = {
-    aspectRatio: isRomantic ? "4:5 (Portrait) أو 16:9 (Cinematic)" : "16:9 (Landscape)",
-    model: "Flux.1 [Realism] / Midjourney v6.1 Photorealism",
-    cfgScale: "3.0 (Flux) / 5.5 (SDXL)",
-    steps: "30-35 steps"
+    aspectRatio: "3:4 (Portrait)",
+    model: "Flux.1 Uncensored / SDXL Realism",
+    cfgScale: "3.5",
+    steps: "30 steps"
   };
 
   return {
