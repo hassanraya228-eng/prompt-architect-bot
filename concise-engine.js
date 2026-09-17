@@ -1,29 +1,26 @@
 /**
- * Dynamic Semantic Translation Engine v13.0
- * Zero Dilution: Preserves 100% of user intent, acts, anatomy, and explicit details.
+ * Production Prompt & Translation Engine v14.0
+ * Eliminates anatomy distortions and facial melting for couple/kiss/action prompts.
  */
 
 const { translateUncensored } = require('./adult-translator');
 
 const GENERAL_VOCABULARY = [
-  { re: /بنت|فتاة|امرأة|امرأه|صبية/gi, en: "attractive natural woman" },
+  { re: /بنت|فتاة|امرأة|امرأه|صبية/gi, en: "gorgeous young woman" },
   { re: /شب|شاب|رجل/gi, en: "handsome young man" },
-  { re: /محارب|ساموراي|فارس/gi, en: "stoic warrior in authentic weathered armor" },
-  { re: /رائد فضاء/gi, en: "seasoned astronaut in space suit" },
-  { re: /قطة|قط|بسة/gi, en: "British Shorthair cat, ultra sharp eye focus" },
-  { re: /كلب/gi, en: "Siberian Husky, sharp fur texture" },
+  { re: /محارب|ساموراي|فارس/gi, en: "stoic warrior in authentic armor" },
+  { re: /رائد فضاء/gi, en: "astronaut in space suit" },
+  { re: /قطة|قط|بسة/gi, en: "British Shorthair cat" },
+  { re: /كلب/gi, en: "Siberian Husky" },
   { re: /بحر|شاطئ/gi, en: "coastal beach shoreline at sunset" },
-  { re: /مطر|تحت المطر|ممطر/gi, en: "street in gentle rain, wet pavement reflections" },
-  { re: /سيارة|سيارة فخمة/gi, en: "luxury modern supercar" },
-  { re: /شارع|مدينة/gi, en: "bustling urban city street" }
+  { re: /مطر|تحت المطر|ممطر/gi, en: "street in gentle rain" }
 ];
 
 function translateArabicContext(text) {
-  // First check uncensored literal dictionary
+  // Check exact/sensitive dialect terms first
   const adultResult = translateUncensored(text);
   if (adultResult.hasMatch) {
     let combined = adultResult.translated;
-    // Check if remaining text has general words
     if (adultResult.remaining && adultResult.remaining.length > 2) {
       let rem = adultResult.remaining;
       for (const item of GENERAL_VOCABULARY) {
@@ -36,7 +33,6 @@ function translateArabicContext(text) {
     return combined;
   }
 
-  // If standard/non-adult query
   let lower = text.trim();
   let detectedParts = [];
 
@@ -55,25 +51,23 @@ function translateArabicContext(text) {
 }
 
 function buildConcisePrompt(translatedSubject, mood, originalArabic) {
-  const isAdultOrExplicit = /sex|penetration|naked|nude|vagina|pussy|penis|cock|tits|breasts|doggystyle|oral|cunnilingus|masturbation|anal|french kiss|undressing|bikini|lingerie|سكس|نيك|ضاجع|طيز|كس|بزاز|شلح|زب|قضيب|صدر/i.test(translatedSubject) || /سكس|نيك|ضاجع|طيز|كس|بزاز|شلح|زب|قضيب|صدر|صدرها|صدره|بكيني|شهوة|حميم/i.test(originalArabic);
+  const isKiss = /kiss|يبوس|بوسة|قبلة/i.test(translatedSubject) || /يبوس|بوسة|قبلة|شفايف/i.test(originalArabic);
+  const isAdultOrCouple = /couple|lovers|sex|naked|nude|bed|embrace|سكس|نيك|ضاجع|طيز|كس|بزاز|شلح|ع السرير/i.test(translatedSubject) || /سكس|نيك|ضاجع|طيز|كس|بزاز|شلح|ع السرير/i.test(originalArabic);
 
-  let environment = "";
-  let lighting = "";
-  let camera = "35mm camera, 50mm f/1.4 lens, candid realistic framing";
-  let medium = "authentic RAW color photograph, natural skin pores and texture, Kodak Portra 400";
+  let camera = "85mm portrait lens f/1.8, side profile view, sharp eye focus";
+  let medium = "authentic 35mm film photograph, Kodak Portra 400, natural skin pores, realistic real people";
+  let lighting = "natural soft window lighting, cinematic rim light";
+  let environment = "intimate cozy room atmosphere";
 
-  if (isAdultOrExplicit) {
-    // Keep exact user subject as dominant focus, add only realistic photography grounding
-    environment = "dimly lit luxury bedroom, rumpled linen sheets";
-    lighting = "warm soft ambient lighting, gentle natural skin reflections";
-  } else {
-    environment = "natural realistic environment";
-    lighting = "natural diffused lighting, authentic soft shadows";
+  let subjectPrompt = translatedSubject;
+
+  // Specific spatial anchoring for kissing to prevent facial melting/mesh distortion
+  if (isKiss) {
+    subjectPrompt = "side profile view of a loving couple kissing, lips touching softly, closed eyes, handsome young man and gorgeous young woman, clear distinct facial anatomy";
   }
 
-  // Put user subject first and unfiltered
   const promptParts = [
-    translatedSubject,
+    subjectPrompt,
     environment,
     lighting,
     camera,
@@ -83,20 +77,20 @@ function buildConcisePrompt(translatedSubject, mood, originalArabic) {
   const finalPrompt = promptParts.filter(Boolean).join(", ");
   const wordCount = finalPrompt.split(/\s+/).length;
 
-  const negativePrompt = "anime, cartoon, drawing, illustration, 3d render, CGI, digital painting, doll, plastic skin, airbrushed, unreal engine, fake, blurry, watermark, bad anatomy, deformed eyes, extra limbs";
+  const negativePrompt = "melting faces, fused bodies, mutated anatomy, deformed lips, bad eyes, cartoon, anime, 3d render, illustration";
 
   const layersAr = {
-    subject: translatedSubject,
+    subject: subjectPrompt,
     environment: environment,
-    medium: "تصوير واقعي صريح 35mm فوتوغرافي بدون تلطيف أو رقابة",
+    medium: "تصوير سينمائي واقعي 35mm، ملامح وجه طبيعية خالية من الاندماج والتشوه",
     lighting: lighting,
     composition: camera,
-    technical: "دقة تشريحية كاملة، ألوان طبيعية حقيقية، بدون نمط كرتوني"
+    technical: "تناسق تشريحي كامل للملامح والشفاه بدون ذوبان الأوجه"
   };
 
   const settings = {
-    aspectRatio: "3:4 (Portrait)",
-    model: "Flux.1 Uncensored / SDXL Realism",
+    aspectRatio: "3:4 (Portrait 768x1024)",
+    model: "Flux.1 Cinematic Photography",
     cfgScale: "3.5",
     steps: "30 steps"
   };
