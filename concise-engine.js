@@ -1,23 +1,24 @@
 /**
- * Production Prompt & Translation Engine v14.0
- * Eliminates anatomy distortions and facial melting for couple/kiss/action prompts.
+ * Dynamic Semantic Translation Engine v17.0
+ * Zero Dilution: Preserves 100% of user intent, acts, anatomy, and explicit details.
  */
 
 const { translateUncensored } = require('./adult-translator');
 
 const GENERAL_VOCABULARY = [
-  { re: /بنت|فتاة|امرأة|امرأه|صبية/gi, en: "gorgeous young woman" },
+  { re: /بنت|فتاة|امرأة|امرأه|صبية/gi, en: "attractive natural woman" },
   { re: /شب|شاب|رجل/gi, en: "handsome young man" },
-  { re: /محارب|ساموراي|فارس/gi, en: "stoic warrior in authentic armor" },
-  { re: /رائد فضاء/gi, en: "astronaut in space suit" },
-  { re: /قطة|قط|بسة/gi, en: "British Shorthair cat" },
-  { re: /كلب/gi, en: "Siberian Husky" },
+  { re: /محارب|ساموراي|فارس/gi, en: "stoic warrior in authentic weathered armor" },
+  { re: /رائد فضاء/gi, en: "seasoned astronaut in space suit" },
+  { re: /قطة|قط|بسة/gi, en: "British Shorthair cat, ultra sharp eye focus" },
+  { re: /كلب/gi, en: "Siberian Husky, sharp fur texture" },
   { re: /بحر|شاطئ/gi, en: "coastal beach shoreline at sunset" },
-  { re: /مطر|تحت المطر|ممطر/gi, en: "street in gentle rain" }
+  { re: /مطر|تحت المطر|ممطر/gi, en: "street in gentle rain, wet pavement reflections" },
+  { re: /سيارة|سيارة فخمة/gi, en: "luxury modern supercar" },
+  { re: /شارع|مدينة/gi, en: "bustling urban city street" }
 ];
 
 function translateArabicContext(text) {
-  // Check exact/sensitive dialect terms first
   const adultResult = translateUncensored(text);
   if (adultResult.hasMatch) {
     let combined = adultResult.translated;
@@ -52,18 +53,25 @@ function translateArabicContext(text) {
 
 function buildConcisePrompt(translatedSubject, mood, originalArabic) {
   const isKiss = /kiss|يبوس|بوسة|قبلة/i.test(translatedSubject) || /يبوس|بوسة|قبلة|شفايف/i.test(originalArabic);
-  const isAdultOrCouple = /couple|lovers|sex|naked|nude|bed|embrace|سكس|نيك|ضاجع|طيز|كس|بزاز|شلح|ع السرير/i.test(translatedSubject) || /سكس|نيك|ضاجع|طيز|كس|بزاز|شلح|ع السرير/i.test(originalArabic);
+  const isAdultOrExplicit = /sex|penetration|naked|nude|vagina|pussy|penis|cock|tits|breasts|doggystyle|oral|cunnilingus|masturbation|anal|undressing|bikini|lingerie|سكس|نيك|ضاجع|طيز|كس|بزاز|شلح|زب|قضيب|صدر/i.test(translatedSubject) || /سكس|نيك|ضاجع|طيز|كس|بزاز|شلح|زب|قضيب|صدر|صدرها|صدره|بكيني|شهوة|حميم/i.test(originalArabic);
 
-  let camera = "85mm portrait lens f/1.8, side profile view, sharp eye focus";
-  let medium = "authentic 35mm film photograph, Kodak Portra 400, natural skin pores, realistic real people";
-  let lighting = "natural soft window lighting, cinematic rim light";
-  let environment = "intimate cozy room atmosphere";
+  let environment = "";
+  let lighting = "";
+  let camera = "85mm prime lens f/1.8, candid sharp framing";
+  let medium = "authentic RAW color photograph, natural skin pores and realistic texture, Kodak Portra 400";
 
   let subjectPrompt = translatedSubject;
 
-  // Specific spatial anchoring for kissing to prevent facial melting/mesh distortion
   if (isKiss) {
-    subjectPrompt = "side profile view of a loving couple kissing, lips touching softly, closed eyes, handsome young man and gorgeous young woman, clear distinct facial anatomy";
+    subjectPrompt = "loving couple side profile view kissing, lips softly touching, closed eyes, distinct facial features";
+    environment = "warm cozy bedroom";
+    lighting = "soft golden window light, gentle natural shadows";
+  } else if (isAdultOrExplicit) {
+    environment = "dimly lit luxury bedroom, rumpled linen sheets";
+    lighting = "warm soft ambient lighting, gentle natural skin reflections";
+  } else {
+    environment = "natural realistic environment";
+    lighting = "natural diffused lighting, authentic soft shadows";
   }
 
   const promptParts = [
@@ -82,10 +90,10 @@ function buildConcisePrompt(translatedSubject, mood, originalArabic) {
   const layersAr = {
     subject: subjectPrompt,
     environment: environment,
-    medium: "تصوير سينمائي واقعي 35mm، ملامح وجه طبيعية خالية من الاندماج والتشوه",
+    medium: "تصوير فوتوغرافي واقعي 35mm فائق الدقة",
     lighting: lighting,
     composition: camera,
-    technical: "تناسق تشريحي كامل للملامح والشفاه بدون ذوبان الأوجه"
+    technical: "دقة تشريحية كاملة، ألوان طبيعية حقيقية، بدون نمط كرتوني أو تشويه"
   };
 
   const settings = {
